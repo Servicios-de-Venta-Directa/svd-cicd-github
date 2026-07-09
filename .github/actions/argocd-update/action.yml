@@ -54,6 +54,7 @@ runs:
         IMAGE_TAG: ${{ inputs.image_tag }}
         BRANCH: ${{ inputs.branch_name }}
       run: |
+        ls -l
         yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag) = strenv(IMAGE_TAG)" -i argocd-applications/values.yaml
         yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .branch) = strenv(BRANCH)" -i argocd-applications/values.yaml
 

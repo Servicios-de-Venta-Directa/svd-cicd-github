@@ -42,8 +42,6 @@ runs:
       env:
         GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
       run: |
-        pwd
-        ls -l
         current_tag=$(yq ".apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag" argocd-applications/values.yaml)
         echo "current_tag=$current_tag" >> $GITHUB_OUTPUT
 

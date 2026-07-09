@@ -1,0 +1,55 @@
+name: 'Retag Docker Image for Production'
+description: 'Pull dev image, retag for prod (remove branch suffix), push'
+
+inputs:
+  docker_repo_user:
+    description: 'Docker Hub username'
+    required: true
+  docker_repo_password:
+    description: 'Docker Hub password'
+    required: true
+  image_name:
+    description: 'Docker image name'
+    required: true
+  dev_image_tag:
+    description: 'Dev image tag (full, with branch)'
+    required: true
+
+outputs:
+  prod_tag:
+    description: 'Generated prod tag (timestamp only, no branch)'
+    value: ${{ steps.retag.outputs.prod_tag }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Login to Docker Hub
+      uses: docker/login-action@v1
+      with:
+        username: ${{ inputs.docker_repo_user }}
+        password: ${{ inputs.docker_repo_password }}
+
+    - name: Retag and push for prod
+      id: retag
+      shell: bash
+      env:
+        DOCKER_REPO_USER: ${{ inputs.docker_repo_user }}
+        IMAGE_NAME: ${{ inputs.image_name }}
+        DEV_TAG: ${{ inputs.dev_image_tag }}
+      run: |
+        # Extract prod tag (everything before first dash that's not in timestamp)
+        # YYYYMMDDHHmmss has no dashes, so first dash marks branch
+        # e.g., 20260709124530-develop → 20260709124530
+        PROD_TAG="${DEV_TAG%%-*}"
+        
+        echo "Retagging $DOCKER_REPO_USER/$IMAGE_NAME:$DEV_TAG → $PROD_TAG"
+        
+        docker pull "$DOCKER_REPO_USER/$IMAGE_NAME:$DEV_TAG"
+        docker tag "$DOCKER_REPO_USER/$IMAGE_NAME:$DEV_TAG" "$DOCKER_REPO_USER/$IMAGE_NAME:latest"
+        docker tag "$DOCKER_REPO_USER/$IMAGE_NAME:$DEV_TAG" "$DOCKER_REPO_USER/$IMAGE_NAME:$PROD_TAG"
+        
+        docker push "$DOCKER_REPO_USER/$IMAGE_NAME:latest"
+        docker push "$DOCKER_REPO_USER/$IMAGE_NAME:$PROD_TAG"
+        
+        echo "prod_tag=$PROD_TAG" >> $GITHUB_OUTPUT
+        echo "✅ Image retagged: $PROD_TAG"

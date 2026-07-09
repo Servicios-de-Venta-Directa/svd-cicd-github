@@ -1,0 +1,81 @@
+name: 'Update ArgoCD Image Tag'
+description: 'Update image tag and branch in ArgoCD values.yaml and commit'
+
+inputs:
+  gitops_token:
+    description: 'GitHub token with repo access to svd-cicd'
+    required: true
+  gitops_app_name:
+    description: 'App name in argocd-applications/values.yaml (e.g., cyo-j2ee-dev)'
+    required: true
+  image_tag:
+    description: 'Image tag to set'
+    required: true
+  branch_name:
+    description: 'Git branch name'
+    required: true
+  commit_message_prefix:
+    description: 'Commit message prefix'
+    default: 'ci: Update'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout svd-cicd repo
+      uses: actions/checkout@v4
+      with:
+        repository: Servicios-de-Venta-Directa/svd-cicd.git
+        ref: main
+        token: ${{ inputs.gitops_token }}
+        path: argocd
+
+    - name: Install yq
+      shell: bash
+      run: |
+        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        sudo chmod +x /usr/local/bin/yq
+
+    - name: Get current tag
+      id: get_current_tag
+      shell: bash
+      env:
+        GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
+      run: |
+        cd argocd
+        current_tag=$(yq ".apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag" argocd-applications/values.yaml)
+        echo "current_tag=$current_tag" >> $GITHUB_OUTPUT
+
+    - name: Update image tag and branch
+      shell: bash
+      env:
+        GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        BRANCH: ${{ inputs.branch_name }}
+      run: |
+        cd argocd
+        yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag) = strenv(IMAGE_TAG)" -i argocd-applications/values.yaml
+        yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .branch) = strenv(BRANCH)" -i argocd-applications/values.yaml
+
+    - name: Commit and push
+      shell: bash
+      env:
+        GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        MESSAGE_PREFIX: ${{ inputs.commit_message_prefix }}
+      run: |
+        cd argocd
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add argocd-applications/values.yaml
+        git commit -m "$MESSAGE_PREFIX $GITOPS_APP_NAME image tag to $IMAGE_TAG"
+        git push
+
+    - name: Log update
+      shell: bash
+      env:
+        GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+        PREVIOUS_TAG: ${{ steps.get_current_tag.outputs.current_tag }}
+      run: |
+        echo "✅ Updated $GITOPS_APP_NAME from $PREVIOUS_TAG to $IMAGE_TAG"

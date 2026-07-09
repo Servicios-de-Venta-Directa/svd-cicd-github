@@ -23,7 +23,7 @@ runs:
   using: 'composite'
   steps:
     - name: Checkout svd-cicd repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         repository: Servicios-de-Venta-Directa/svd-cicd.git
         ref: main
@@ -43,6 +43,8 @@ runs:
       env:
         GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
       run: |
+        pwd
+        ls -l
         current_tag=$(yq ".apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag" argocd-applications/values.yaml)
         echo "current_tag=$current_tag" >> $GITHUB_OUTPUT
 
@@ -54,7 +56,6 @@ runs:
         IMAGE_TAG: ${{ inputs.image_tag }}
         BRANCH: ${{ inputs.branch_name }}
       run: |
-        ls -l
         yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag) = strenv(IMAGE_TAG)" -i argocd-applications/values.yaml
         yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .branch) = strenv(BRANCH)" -i argocd-applications/values.yaml
 

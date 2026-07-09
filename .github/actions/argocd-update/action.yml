@@ -39,32 +39,32 @@ runs:
     - name: Get current tag
       id: get_current_tag
       shell: bash
+      working-directory: argocd
       env:
         GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
       run: |
-        cd argocd
         current_tag=$(yq ".apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag" argocd-applications/values.yaml)
         echo "current_tag=$current_tag" >> $GITHUB_OUTPUT
 
     - name: Update image tag and branch
       shell: bash
+      working-directory: argocd
       env:
         GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
         IMAGE_TAG: ${{ inputs.image_tag }}
         BRANCH: ${{ inputs.branch_name }}
       run: |
-        cd argocd
         yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag) = strenv(IMAGE_TAG)" -i argocd-applications/values.yaml
         yq "(.apps[] | select(.name == \"$GITOPS_APP_NAME\") | .branch) = strenv(BRANCH)" -i argocd-applications/values.yaml
 
     - name: Commit and push
       shell: bash
+      working-directory: argocd
       env:
         GITOPS_APP_NAME: ${{ inputs.gitops_app_name }}
         IMAGE_TAG: ${{ inputs.image_tag }}
         MESSAGE_PREFIX: ${{ inputs.commit_message_prefix }}
       run: |
-        cd argocd
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add argocd-applications/values.yaml

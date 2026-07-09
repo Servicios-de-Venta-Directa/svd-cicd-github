@@ -28,7 +28,6 @@ runs:
         repository: Servicios-de-Venta-Directa/svd-cicd.git
         ref: main
         token: ${{ inputs.gitops_token }}
-        path: argocd
 
     - name: Install yq
       shell: bash

@@ -11,8 +11,11 @@ inputs:
   image_name:
     description: 'Docker image name'
     required: true
-  dev_image_tag:
-    description: 'Dev image tag (full, with branch)'
+  gitops_token:
+    description: 'GitHub token with repo access to svd-cicd'
+    required: true
+  gitops_dev_app_name:
+    description: 'Dev app name in argocd-applications/values.yaml whose currently deployed tag will be promoted'
     required: true
 
 outputs:
@@ -23,6 +26,34 @@ outputs:
 runs:
   using: 'composite'
   steps:
+    - name: Checkout svd-cicd repo
+      uses: actions/checkout@v7
+      with:
+        repository: Servicios-de-Venta-Directa/svd-cicd.git
+        ref: main
+        token: ${{ inputs.gitops_token }}
+        path: gitops-checkout
+
+    - name: Install yq
+      shell: bash
+      run: |
+        sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+        sudo chmod +x /usr/local/bin/yq
+
+    - name: Read currently deployed dev tag
+      id: dev_tag
+      shell: bash
+      working-directory: gitops-checkout/argocd
+      env:
+        GITOPS_APP_NAME: ${{ inputs.gitops_dev_app_name }}
+      run: |
+        DEV_TAG=$(yq ".apps[] | select(.name == \"$GITOPS_APP_NAME\") | .tag" argocd-applications/values.yaml)
+        if [[ -z "$DEV_TAG" || "$DEV_TAG" == "null" ]]; then
+          echo "No deployed tag found for app $GITOPS_APP_NAME" >&2
+          exit 1
+        fi
+        echo "tag=$DEV_TAG" >> "$GITHUB_OUTPUT"
+
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
@@ -35,7 +66,7 @@ runs:
       env:
         DOCKER_REPO_USER: ${{ inputs.docker_repo_user }}
         IMAGE_NAME: ${{ inputs.image_name }}
-        DEV_TAG: ${{ inputs.dev_image_tag }}
+        DEV_TAG: ${{ steps.dev_tag.outputs.tag }}
       run: |
         # Extract prod tag (everything before first dash that's not in timestamp)
         # YYYYMMDDHHmmss has no dashes, so first dash marks branch
